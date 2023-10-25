@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Admin || Real-Time Collaborative Task Management App</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+  </head>
+  <body>
+    <nav class="navbar bg-dark border-bottom border-body" data-bs-theme="dark">
+        <div class="container-fluid">
+          <a class="navbar-brand" href="/">Real-Time Collaborative Task Management App</a>
+          <div class="d-flex">
+            <a href="/login"><button class="btn btn-outline-success mx-2">Login</button></a>
+            <a href="/signup"><button class="btn btn-outline-success mx-2">Signup</button></a>
+          </div>
+        </div>
+    </nav>
+    <div>
+        <div class="container">
+            <h2 class="text-center my-4">Admin Dashboard</h2>
+            <div>
+                <h2 class="text-center my-4">Create Project</h2>
+                <div>
+                  <div class="mb-3">
+                    <label for="title" class="form-label">Title</label>
+                    <input type="text" class="form-control" name="title" id="title" aria-describedby="titleHelp">
+                  </div>
+                  <div class="mb-3">
+                    <label for="description" class="form-label">Description</label>
+                    <textarea type="text" name="description" class="form-control" id="description"></textarea> 
+                  </div>
+                  <button type="submit" id="submit" class="btn btn-primary">Add Project</button>
+                </div>
+              </div>
+            <div>
+                <h2 class="text-center my-4">Existing Project</h2>
+                <table class="table table-info text-center table-striped ">
+                    <thead>
+                        <tr>
+                            <th scope="col">Project Name</th>
+                            <th scope="col">Description</th>
+                            <th scope="col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablebody">
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Modal -->
+            <div class="modal fade" id="projectmodal" tabindex="-1" aria-labelledby="ProjectModlLable" aria-hidden="true">
+              <div class="modal-dialog">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="ProjectModlLable">Edit Project</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                  </div>
+                  <div class="modal-body">
+                    <!-- Project Title -->
+                      <div class="form-group">
+                        <label for="projectTitle">Title</label>
+                        <input type="text" class="form-control" id="projectTitle">
+                      </div>
+
+                    <!-- Project Description -->
+                      <div class="form-group">
+                        <label for="projectDescription">Description</label>
+                        <textarea class="form-control" id="projectDescription"></textarea>
+                      </div>
+
+                      <div class="form-group">
+                        <label for="projectMembers">Members</label>
+                        <ul id="projectMembers">
+                        </ul>
+                      </div>
+                      <p>Created at<span id="projectCreatedAt"></span></p>
+                      <p>Updated at<span id="projectUpdatedAt"></span></p>
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="changes">Save changes</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+    <script>
+        async function postData(url = "", data = {}) {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data), 
+        });
+          return await response.json();
+        }
+        const token = JSON.parse(localStorage.getItem('token'));
+        if(!token){
+          window.location = "/login"
+        }
+        const projects = postData("api/v1/project/getprojects", {token : token});
+        projects.then((projects) => {
+            projects.projects.forEach(element => {
+                let html = `
+                    <tr>
+                        <th scope="row">${element.title}</th>
+                        <td>${element.description}</td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-danger" data-projectid=${element._id}>Delete</button>
+                            <button type="button" class="btn btn-sm btn-primary" data-bs-target="projectmodal"  data-projectid=${element._id}>Edit</button>
+                        </td>
+                    </tr>
+                `
+                let tablecontainer = document.getElementById("tablebody");
+                tablecontainer.innerHTML += html;
+            })
+        })
+        let submit = document.getElementById("submit")
+        submit.addEventListener("click",async ()=>{
+          let title = document.getElementById("title").value
+          let description = document.getElementById("description").value;
+          let token = JSON.parse(localStorage.getItem('token'));
+          let project = await postData("api/v1/project/createproject" , {title , description , token });
+          if(project.success) {
+            alert(project.message);
+            window.location.reload();
+          }
+          if(!project.success){
+            alert(project.message);
+          }
+        });
+
+        let tablecontainer = document.getElementById("tablebody")
+        tablecontainer.addEventListener("click", async (event) => {
+          if (event.target && event.target.matches(".btn-danger")) {
+            const projectid = event.target.getAttribute("data-projectid");
+            const token = JSON.parse(localStorage.getItem('token'));
+            if (token) {
+              const confirmDelete = confirm("Are you sure you want to delete this project?");
+              if (confirmDelete) {
+                const response = await postData(`api/v1/project/deleteproject/${projectid}`, { token });
+                if (response.success) {
+                  alert(response.message);
+                  window.location.reload();
+                } else {
+                  alert(response.message);
+                }
+              }
+            }
+          }
+          if (event.target && event.target.matches(".btn-primary")) {
+            const projectid = event.target.getAttribute("data-projectid");
+            const token = JSON.parse(localStorage.getItem('token'));
+            document.getElementById("changes").setAttribute("data-projectid", projectid)
+            const project = await postData(`/api/v1/project/getprojectbyid/${projectid}`, {token});
+            if(!project.success){
+              alert(project.message);
+              return;
+            }
+            document.getElementById('projectTitle').value = project.project.title;
+            document.getElementById('projectDescription').value = project.project.description;
+            project.project.members.forEach(member=>{
+              let list = `<li>${member.username}</li>`;
+              document.getElementById('projectMembers').innerHTML = list;
+            })
+            document.getElementById("projectCreatedAt").innerHTML = " : " + new Date(project.project.createdAt);
+            document.getElementById("projectUpdatedAt").innerHTML = " : " + new Date(project.project.updatedAt);
+            const modalId = event.target.getAttribute("data-bs-target");
+            if (modalId) {
+              const modal = document.getElementById(modalId);
+              if (modal) {
+                  const bootstrapModal = new bootstrap.Modal(modal);
+                  bootstrapModal.show();
+              }
+            }
+          }
+        });
+        let changes = document.getElementById("changes")
+        changes.addEventListener("click", async ()=>{
+          let title = document.getElementById("projectTitle").value
+          let description = document.getElementById("projectDescription").value;
+          let token = JSON.parse(localStorage.getItem('token'));
+          let projectid = changes.getAttribute("data-projectid");
+          let project = await postData(`api/v1/project/updateproject/${projectid}`, {title, description, token });
+          if(project.success) {
+            alert(project.message);
+            window.location.reload();
+          }
+          if(!project.success){
+            alert(project.message);
+          }
+        });
+    </script>
+  </body>
+</html>

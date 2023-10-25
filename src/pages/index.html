@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title> Real-Time Collaborative Task Management App</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+  </head>
+  <body>
+    <nav class="navbar bg-dark border-bottom border-body" data-bs-theme="dark">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="/">Real-Time Collaborative Task Management App</a>
+        <div class="d-flex" id="nav">
+          <a href="/login"><button class="btn btn-outline-success mx-2" id="log"></button></a>
+          <a href="/signup"><button class="btn btn-outline-success mx-2">Signup</button></a>
+        </div>
+      </div>
+    </nav>
+    <div>
+      <div class="container">
+        <div>
+          <h2 class="text-center my-4">Add Tasks</h2>
+          <div>
+            <div class="mb-3">
+              <label for="title" class="form-label">Title</label>
+              <input type="text" class="form-control" name="title" id="title" aria-describedby="titleHelp">
+            </div>
+            <div class="mb-3">
+              <label for="description" class="form-label">Description</label>
+              <textarea type="text" name="description" class="form-control" id="description"></textarea> 
+            </div>
+            <button type="submit" id="submit" class="btn btn-primary">Submit</button>
+          </div>
+        </div>
+        <div>
+          <h2 class="text-center my-4" id="heading"></h2>
+          <table class="table table-info text-center table-striped" id="table">
+            <thead>
+                <tr>
+                    <th scope="col">Title</th>
+                    <th scope="col">Description</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Action</th>
+                </tr>
+            </thead>
+            <tbody id="tablebody">
+            </tbody>
+        </table>
+        </div>
+        </div>
+      </div>
+      <div class="modal" id="taskmodal" tabindex="-1">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Update Task</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div>
+                <div class="mb-3">
+                    <label for="title" class="form-label">Title</label>
+                    <input type="text" class="form-control" name="title" id="tasktitle" aria-describedby="titleHelp">
+                </div>
+                <div class="mb-3">
+                    <label for="description" class="form-label">Description</label>
+                    <textarea type="text" name="description" class="form-control" id="taskdescription"></textarea> 
+                </div>
+            </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+              <button type="button" class="btn btn-primary" id="updatetask">Save changes</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.1/socket.io.js"></script>
+    <script>
+       document.body.style.backgroundImage = "url(https://img.freepik.com/free-photo/background_53876-32169.jpg?size=626&ext=jpg&ga=GA1.1.386372595.1698105600&semt=ais)";
+       const socket = io.connect("http://localhost:5555");
+      //fetch all tasks
+        async function postData(url = "", data = {}) {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data), 
+        });
+          return await response.json();
+        }
+        const token = JSON.parse(localStorage.getItem('token'));
+        const user =  postData("api/v1/user/getuserrole", {token});
+        user.then((user) => {
+          if(user.user.role === "admin"){
+            document.getElementById("nav").innerHTML += `<a href="/manage"><button class="btn btn-outline-success mx-2">Manage User</button></a>`
+          };
+        })
+        if(token){
+          let log = document.getElementById("log")
+          log.innerHTML = `Logout`
+          log.addEventListener("click",()=>{
+            alert("User logged out")
+            localStorage.clear();
+          })
+        }else{
+          document.getElementById("log").innerHTML = `Login`
+        }
+        if(!token){
+          window.location = "/login"
+        }
+        const usertasks = postData("api/v1/task/getusertasks", {token : token});
+        usertasks.then((tasks)=>{
+          if(tasks.tasks.length){
+            document.getElementById("heading").innerHTML = "Your Tasks";
+            tasks.tasks.forEach(element => {
+            let html = `
+              <tr>
+                <th scope="row">${element.title}</th>
+                  <td>${element.description}</td> 
+                  <td>${element.status}</td> 
+                  <td>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#taskmodal" data-taskid=${element._id}>Update</button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" data-tasktitle=${element.title} data-taskid=${element._id}>Delete</button>
+                    <button type="button" class="btn btn-sm btn-outline-success" data-tasktitle=${element.title} data-taskid=${element._id}>Completed</button>
+                  </td>
+              </tr>
+            `
+            let taskContainer = document.getElementById("tablebody");
+            taskContainer.innerHTML += html;
+          });
+          }else{
+            document.getElementById("heading").innerHTML = "No Tasks Today!";
+            document.getElementById("table").style.display = "none"
+          }
+        })
+
+        //Add listner for submit
+        const submit = document.getElementById("submit")
+        submit.addEventListener("click",async ()=>{
+          const title = document.getElementById("title").value;
+          const description = document.getElementById("description").value;
+          const token = JSON.parse(localStorage.getItem('token'));
+          await postData("/api/v1/task/addTasks", {title, description, token}).then((res)=>{
+            if(res.success){
+              socket.emit(res.message , {title})
+              alert(res.message);
+              window.location.reload();
+            }
+            if(!res.success){
+              alert(res.message);
+            }
+          });
+        })
+        let tablecontainer = document.getElementById("tablebody");
+        tablecontainer.addEventListener("click", async (event) => {
+          if(event.target && event.target.matches(".btn-outline-primary")) {
+            const taskId = event.target.getAttribute("data-taskid");
+            const modalId = event.target.getAttribute("data-bs-target");
+              if (modalId) {
+                  const modal = document.getElementById(modalId);
+                  if (modal) {
+                    const bootstrapModal = new bootstrap.Modal(modal);
+                    bootstrapModal.show();
+                  }
+              }
+              document.getElementById("updatetask").setAttribute("data-taskid", taskId);
+          }
+          if(event.target && event.target.matches(".btn-outline-danger")) {
+            const title = event.target.getAttribute("data-tasktitle");
+            const taskId = event.target.getAttribute("data-taskid");
+            const token = JSON.parse(localStorage.getItem('token'));
+            const res = await postData(`api/v1/task/deleteusertasks/${taskId}`, {token});
+            if(res.success){
+              socket.emit(res.message , {title})
+              alert(res.message);
+              window.location.reload();
+            }
+            if(!res.success){
+              alert(res.message);
+            }
+          }
+          if(event.target && event.target.matches(".btn-outline-success")) {
+            const title = event.target.getAttribute("data-tasktitle");
+            const taskId = event.target.getAttribute("data-taskid");
+            const token = JSON.parse(localStorage.getItem('token'));
+            const res = await postData(`api/v1/task/updateusertasks/${taskId}`, {token , status: "completed"});
+            if(res.success){
+              socket.emit(res.message , {title})
+              alert(res.message);
+              window.location.reload();
+            }
+            if(!res.success){
+              alert(res.message , title);
+            }
+          }
+        });
+        document.getElementById("updatetask").addEventListener("click", async (event) => {
+          const title = document.getElementById("tasktitle").value;
+          const description = document.getElementById("taskdescription").value;
+          const taskId = event.target.getAttribute("data-taskid");
+          const token = JSON.parse(localStorage.getItem('token'));
+          const response = await postData(`/api/v1/task/updateusertasks/${taskId}`, {
+            token,
+            title,
+            description
+          });
+          if (response.success) {
+            socket.emit(response.message , {data : title})
+            alert(response.message);
+            window.location.reload();
+          } else {
+            alert(response.message);
+          }
+      });
+      socket.on("Task created", (data) => {
+        alert(`Task created with title  ${data}`);
+      });
+      socket.on("Task deleted", (data) => {
+        alert(`Task deleted with title  ${data}`);
+      });
+      socket.on("Task updated", (data) => {
+        console.log(data);
+        alert(`Task updated with title  ${data}`);
+      });
+    </script>
+  </body>
+</html>
